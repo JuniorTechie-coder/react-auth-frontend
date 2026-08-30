@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
 
-function Dashboard(){
+function Dashboard({setisLoggedIn}){
     const [workspaces, setworkspaces] = useState([]);
 
     useEffect(() => {
@@ -26,7 +26,14 @@ function Dashboard(){
 
     }, []);
 
+     function handleLogout(){
 
+     localStorage.removeItem('token');
+     localStorage.removeItem('user');
+     setisLoggedIn(false);
+    }
+
+    
     return(
     <div>
          <h1>Dashboard 1</h1>
@@ -37,7 +44,8 @@ function Dashboard(){
            <div key ={workspace.id}>
             <h3>{workspace.name}</h3>
             <p>{workspace.description}</p>
-            </div>
+            <button onClick = {handleLogout}>Logout</button>
+            </div> 
     ))}
     </div>
     );
