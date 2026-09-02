@@ -14,8 +14,19 @@ function Dashboard({setisLoggedIn}){
                 }
             });
 
+        // Check the response here
             const data = await response.json();
-            console.log('My workspaces:', data);
+            console.log('My Response:', response);
+            if(response.status === 401){
+                localStorage.removeItem('token');
+                localStorage.removeItem('user')
+
+                setisLoggedIn(false);
+                return;
+            }
+
+
+            //console.log('My workspaces:', data);
 
             //"Whatever the backend returned, put it inside my workspaces state."
             setworkspaces(data);
@@ -32,6 +43,7 @@ function Dashboard({setisLoggedIn}){
      localStorage.removeItem('user');
      setisLoggedIn(false);
     }
+
 
     
     return(
