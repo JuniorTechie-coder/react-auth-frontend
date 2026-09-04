@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 
+function Dashboard({ setIsLoggedIn }) {
+    const [workspaces, setWorkspaces] = useState([]);
 
-function Dashboard({setisLoggedIn}){
-    const [workspaces, setworkspaces] = useState([]);
+    
 
     useEffect(() => {
         async function getWorkspaces() {
@@ -14,55 +15,36 @@ function Dashboard({setisLoggedIn}){
                 }
             });
 
-        // Check the response here
             const data = await response.json();
-            console.log('My Response:', response);
-            if(response.status === 401){
-                localStorage.removeItem('token');
-                localStorage.removeItem('user')
 
-                setisLoggedIn(false);
+            if (response.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                setIsLoggedIn(false);
                 return;
             }
 
-
-            //console.log('My workspaces:', data);
-
-            //"Whatever the backend returned, put it inside my workspaces state."
-            setworkspaces(data);
+            setWorkspaces(data);
         }
-        
 
         getWorkspaces();
-
     }, []);
 
-     function handleLogout(){
+    return (
+        <div>
+            <h1>Dashboard</h1>
+            <button onClick={handleLogout}>Logout</button>
 
-     localStorage.removeItem('token');
-     localStorage.removeItem('user');
-     setisLoggedIn(false);
-    }
+            <h2>My Workspaces</h2>
 
-
-    
-    return(
-    <div>
-         <h1>Dashboard 1</h1>
-         <h2>My workspaces</h2>
-         
-
-         {workspaces.map((workspace) =>( 
-           <div key ={workspace.id}>
-            <h3>{workspace.name}</h3>
-            <p>{workspace.description}</p>
-            <button onClick = {handleLogout}>Logout</button>
-            </div> 
-    ))}
-    </div>
+            {workspaces.map((workspace) => (
+                <div key={workspace.id}>
+                    <h3>{workspace.name}</h3>
+                    <p>{workspace.description}</p>
+                </div>
+            ))}
+        </div>
     );
-
-  
 }
 
-export default Dashboard ;
+export default Dashboard;

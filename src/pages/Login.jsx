@@ -1,7 +1,7 @@
 import {useState} from 'react';
 
 
-function Login({setisLoggedIn}) {
+function Login({setIsLoggedIn}) {
     const [email, setEmail]= useState('');
     const [password, setPassword] = useState('');
     //two input feields
@@ -34,7 +34,7 @@ function Login({setisLoggedIn}) {
             }));
 
             //set true
-            setisLoggedIn(true);
+            setIsLoggedIn(true);
         } else{
             console.log("Login failed", data);
         }
