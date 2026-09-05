@@ -1,26 +1,29 @@
 import { useEffect, useState } from "react";
 
-function Workspace({ handleLogout }) {
-    const [workspaces, setWorkspaces] = useState([]);
+function Board() {
+    const [boards, setBoards] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // New workspace states
+    // Add Board modal states
     const [showModal, setShowModal] = useState(false);
-    const [workspaceName, setWorkspaceName] = useState("");
-    const [workspaceDescription, setWorkspaceDescription] = useState("");
+    const [boardName, setBoardName] = useState("");
+    const [background, setBackground] = useState("");
     const [creating, setCreating] = useState(false);
 
+    // Get workspace ID from URL
+    const workspaceId = window.location.pathname.split("/")[2];
+
     useEffect(() => {
-        fetchWorkspaces();
+        fetchBoards();
     }, []);
 
-    // GET all workspaces
-    async function fetchWorkspaces() {
+    // GET boards of workspace
+    async function fetchBoards() {
         try {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                "http://localhost:3000/api/workspaces",
+                `http://localhost:3000/api/boards/workspace/${workspaceId}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -31,23 +34,31 @@ function Workspace({ handleLogout }) {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || "Failed to fetch workspaces");
+                throw new Error(
+                    data.error || "Failed to fetch boards"
+                );
             }
 
-            setWorkspaces(data);
+            setBoards(data);
+
         } catch (error) {
-            console.error("Error fetching workspaces:", error);
+            console.error("Error fetching boards:", error);
         } finally {
             setLoading(false);
         }
     }
 
-    // POST new workspace
-    async function handleCreateWorkspace(e) {
+    // POST new board
+    async function handleCreateBoard(e) {
         e.preventDefault();
 
-        if (!workspaceName.trim()) {
-            alert("Workspace name is required!");
+        if (!boardName.trim()) {
+            alert("Board name is required!");
+            return;
+        }
+
+        if (!background.trim()) {
+            alert("Background is required!");
             return;
         }
 
@@ -57,7 +68,7 @@ function Workspace({ handleLogout }) {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                "http://localhost:3000/api/workspaces",
+                "http://localhost:3000/api/boards",
                 {
                     method: "POST",
                     headers: {
@@ -65,8 +76,9 @@ function Workspace({ handleLogout }) {
                         Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify({
-                        name: workspaceName,
-                        description: workspaceDescription,
+                        name: boardName,
+                        background: background,
+                        workspace_id: Number(workspaceId),
                     }),
                 }
             );
@@ -75,25 +87,25 @@ function Workspace({ handleLogout }) {
 
             if (!response.ok) {
                 throw new Error(
-                    data.error || "Failed to create workspace"
+                    data.error || "Failed to create board"
                 );
             }
 
-            // Add newly created workspace to UI
-            setWorkspaces((previousWorkspaces) => [
-                ...previousWorkspaces,
+            // Add new board immediately to UI
+            setBoards((previousBoards) => [
+                ...previousBoards,
                 data,
             ]);
 
             // Clear form
-            setWorkspaceName("");
-            setWorkspaceDescription("");
+            setBoardName("");
+            setBackground("");
 
             // Close modal
             setShowModal(false);
 
         } catch (error) {
-            console.error("Error creating workspace:", error);
+            console.error("Error creating board:", error);
             alert(error.message);
         } finally {
             setCreating(false);
@@ -101,7 +113,7 @@ function Workspace({ handleLogout }) {
     }
 
     if (loading) {
-        return <p>Loading workspaces...</p>;
+        return <p>Loading boards...</p>;
     }
 
     return (
@@ -109,8 +121,9 @@ function Workspace({ handleLogout }) {
 
             {/* Header */}
             <div className="section-heading">
+
                 <div>
-                    <h1>Your Workspaces</h1>
+                    <h1>Boards</h1>
 
                     <p
                         className="muted"
@@ -119,7 +132,7 @@ function Workspace({ handleLogout }) {
                             marginTop: "2px",
                         }}
                     >
-                        Select a workspace to view and manage its boards
+                        Select a board to view and manage lists
                     </p>
                 </div>
 
@@ -128,59 +141,64 @@ function Workspace({ handleLogout }) {
                         className="primary-btn"
                         onClick={() => setShowModal(true)}
                     >
-                        + New Workspace
+                        + Add Board
                     </button>
 
-                    <button onClick={handleLogout}>
-                        Logout
+                    <button
+                        onClick={() => {
+                            window.location.href = "/";
+                        }}
+                    >
+                        ← Back
                     </button>
                 </div>
+
             </div>
 
-            {/* Workspace Cards */}
+            {/* Board Grid */}
             <div className="tile-grid">
 
-                {workspaces.length === 0 ? (
+                {boards.length === 0 ? (
+
                     <div className="empty-state">
-                        No workspaces yet — create your first one to start
-                        adding boards.
+                        No boards yet — create your first board.
                     </div>
+
                 ) : (
-                    workspaces.map((workspace, index) => (
+
+                    boards.map((board, index) => (
+
                         <div
                             className="tile"
-                            key={workspace.id}
+                            key={board.id}
                             style={{
+                                cursor: "pointer",
                                 animationDelay: `${Math.min(
                                     index * 0.05,
                                     0.3
                                 )}s`,
-                                cursor: "pointer",
                             }}
                             onClick={() => {
-                                window.location.href = `/boards/${workspace.id}`;
+                                window.location.href = `/board/${board.id}`;
                             }}
                         >
-                            <div>
-                                <h3>{workspace.name}</h3>
-                            </div>
+                            <h3>{board.name}</h3>
 
                             <div
                                 style={{
+                                    marginTop: "12px",
                                     display: "flex",
                                     justifyContent: "space-between",
                                     alignItems: "center",
-                                    marginTop: "12px",
                                 }}
                             >
                                 <span
                                     className="muted"
                                     style={{
                                         fontSize: "13px",
-                                        fontWeight: "500",
                                     }}
                                 >
-                                    📁 Boards
+                                    🎨 {board.background}
                                 </span>
 
                                 <span
@@ -194,35 +212,39 @@ function Workspace({ handleLogout }) {
                                 </span>
                             </div>
                         </div>
+
                     ))
+
                 )}
 
             </div>
 
-            {/* New Workspace Modal */}
+            {/* Add Board Modal */}
             {showModal && (
+
                 <div className="modal-overlay">
 
                     <div className="modal">
 
-                        <h2>Create Workspace</h2>
+                        <h2>Create Board</h2>
 
-                        <form onSubmit={handleCreateWorkspace}>
+                        <form onSubmit={handleCreateBoard}>
 
                             <input
                                 type="text"
-                                placeholder="Workspace name"
-                                value={workspaceName}
+                                placeholder="Board name"
+                                value={boardName}
                                 onChange={(e) =>
-                                    setWorkspaceName(e.target.value)
+                                    setBoardName(e.target.value)
                                 }
                             />
 
-                            <textarea
-                                placeholder="Workspace description"
-                                value={workspaceDescription}
+                            <input
+                                type="text"
+                                placeholder="Background"
+                                value={background}
                                 onChange={(e) =>
-                                    setWorkspaceDescription(e.target.value)
+                                    setBackground(e.target.value)
                                 }
                             />
 
@@ -232,8 +254,8 @@ function Workspace({ handleLogout }) {
                                     type="button"
                                     onClick={() => {
                                         setShowModal(false);
-                                        setWorkspaceName("");
-                                        setWorkspaceDescription("");
+                                        setBoardName("");
+                                        setBackground("");
                                     }}
                                 >
                                     Cancel
@@ -246,7 +268,7 @@ function Workspace({ handleLogout }) {
                                 >
                                     {creating
                                         ? "Creating..."
-                                        : "Create Workspace"}
+                                        : "Create Board"}
                                 </button>
 
                             </div>
@@ -256,9 +278,11 @@ function Workspace({ handleLogout }) {
                     </div>
 
                 </div>
+
             )}
+
         </div>
     );
 }
 
-export default Workspace;
+export default Board;

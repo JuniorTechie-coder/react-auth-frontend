@@ -1,57 +1,58 @@
-import { useState, useEffect } from 'react';
-import Login from './pages/Login';
-import Dashboard from './pages/dashboard';
+import { useState, useEffect } from "react";
+import Login from "./pages/Login";
 import Workspace from "./pages/Workspace";
-
-
+import Board from "./pages/Board";
+import BoardDetail from "./pages/BoardDetail";
 
 function App() {
-  //After succesfull login this state becomes true
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-    //if condition to check after loggin the token exist or not?
-    //hint token already is set to false
-    if(token){
-      setIsLoggedIn(true);
-    } 
-    
-  }, []);
+    useEffect(() => {
+        const token = localStorage.getItem("token");
 
-  function handleLogout() {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        if (token) {
+            setIsLoggedIn(true);
+        }
+    }, []);
+
+    function handleLogout() {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
         setIsLoggedIn(false);
     }
-   
+
     return (
-    <div>
-   
-      { isLoggedIn ? (
+        <div>
 
-         <Workspace handleLogout={handleLogout} />
-      ) : (
-          <Login setIsLoggedIn={setIsLoggedIn} />
-    
-    )}
-           
-    </div>
-      
-    
-  );
+            {isLoggedIn ? (
 
+                window.location.pathname.startsWith("/board/") ? (
+
+                    <BoardDetail />
+
+                ) : window.location.pathname.startsWith("/boards/") ? (
+
+                    <Board />
+
+                ) : (
+
+                    <Workspace
+                        handleLogout={handleLogout}
+                    />
+
+                )
+
+            ) : (
+
+                <Login
+                    setIsLoggedIn={setIsLoggedIn}
+                />
+
+            )}
+
+        </div>
+    );
 }
 
 export default App;
-
-
-
-// <Dashboard setisLoggedIn={setisLoggedIn}/>//ok soo this is called conditional Rendering 
-       // ):(
-          //Login, here's a function you can call when login succeeds
-         // <Login setisLoggedIn={setisLoggedIn}/>
-          
-        //)
-    //}
