@@ -4,10 +4,17 @@ function Workspace({ handleLogout }) {
     const [workspaces, setWorkspaces] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // New workspace states
+    const [showModal, setShowModal] = useState(false);
+    const [workspaceName, setWorkspaceName] = useState("");
+    const [workspaceDescription, setWorkspaceDescription] = useState("");
+    const [creating, setCreating] = useState(false);
+
     useEffect(() => {
         fetchWorkspaces();
     }, []);
 
+    // GET all workspaces
     async function fetchWorkspaces() {
         try {
             const token = localStorage.getItem("token");
@@ -35,6 +42,64 @@ function Workspace({ handleLogout }) {
         }
     }
 
+    // POST new workspace
+    async function handleCreateWorkspace(e) {
+        e.preventDefault();
+
+        if (!workspaceName.trim()) {
+            alert("Workspace name is required!");
+            return;
+        }
+
+        try {
+            setCreating(true);
+
+            const token = localStorage.getItem("token");
+
+            const response = await fetch(
+                "http://localhost:3000/api/workspaces",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        name: workspaceName,
+                        description: workspaceDescription,
+                    }),
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    data.error || "Failed to create workspace"
+                );
+            }
+
+            // Add newly created workspace to UI
+            setWorkspaces((previousWorkspaces) => [
+                ...previousWorkspaces,
+                data,
+            ]);
+
+            // Clear form
+            setWorkspaceName("");
+            setWorkspaceDescription("");
+
+            // Close modal
+            setShowModal(false);
+
+        } catch (error) {
+            console.error("Error creating workspace:", error);
+            alert(error.message);
+        } finally {
+            setCreating(false);
+        }
+    }
+
     if (loading) {
         return <p>Loading workspaces...</p>;
     }
@@ -51,7 +116,7 @@ function Workspace({ handleLogout }) {
                         className="muted"
                         style={{
                             fontSize: "13px",
-                            marginTop: "2px"
+                            marginTop: "2px",
                         }}
                     >
                         Select a workspace to view and manage its boards
@@ -61,7 +126,7 @@ function Workspace({ handleLogout }) {
                 <div>
                     <button
                         className="primary-btn"
-                        onClick={() => console.log("New workspace")}
+                        onClick={() => setShowModal(true)}
                     >
                         + New Workspace
                     </button>
@@ -72,7 +137,7 @@ function Workspace({ handleLogout }) {
                 </div>
             </div>
 
-            {/* Workspace Grid */}
+            {/* Workspace Cards */}
             <div className="tile-grid">
 
                 {workspaces.length === 0 ? (
@@ -129,6 +194,65 @@ function Workspace({ handleLogout }) {
                 )}
 
             </div>
+
+            {/* New Workspace Modal */}
+            {showModal && (
+                <div className="modal-overlay">
+
+                    <div className="modal">
+
+                        <h2>Create Workspace</h2>
+
+                        <form onSubmit={handleCreateWorkspace}>
+
+                            <input
+                                type="text"
+                                placeholder="Workspace name"
+                                value={workspaceName}
+                                onChange={(e) =>
+                                    setWorkspaceName(e.target.value)
+                                }
+                            />
+
+                            <textarea
+                                placeholder="Workspace description"
+                                value={workspaceDescription}
+                                onChange={(e) =>
+                                    setWorkspaceDescription(e.target.value)
+                                }
+                            />
+
+                            <div className="modal-actions">
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowModal(false);
+                                        setWorkspaceName("");
+                                        setWorkspaceDescription("");
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    className="primary-btn"
+                                    disabled={creating}
+                                >
+                                    {creating
+                                        ? "Creating..."
+                                        : "Create Workspace"}
+                                </button>
+
+                            </div>
+
+                        </form>
+
+                    </div>
+
+                </div>
+            )}
         </div>
     );
 }
