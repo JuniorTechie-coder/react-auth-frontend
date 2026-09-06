@@ -8,6 +8,15 @@
   transition: border-color 0.3s;
   margin-bottom: 24px;
 
+  .card.dragging {
+    opacity: 0.5;
+}
+
+.board-list.drop-target {
+    outline: 2px dashed var(--primary);
+    outline-offset: 4px;
+}
+
   &:hover {
     border-color: var(--accent-border);
   }

@@ -5,6 +5,7 @@ function BoardDetail() {
     const [loading, setLoading] = useState(true);
 
     const [draggedCard, setDraggedCard] = useState(null);
+    const [dragOverList, setDragOverList] = useState(null);
 
     // List states
     const [showListModal, setShowListModal] = useState(false);
@@ -483,6 +484,7 @@ function BoardDetail() {
 
     function handleDragEnd() {
         setDraggedCard(null);
+        setDragOverList(null);
     }
 
 
@@ -492,6 +494,7 @@ function BoardDetail() {
 
     function handleDragOver(e) {
         e.preventDefault();
+        setDragOverList(listId);
     }
 
 
@@ -670,11 +673,13 @@ function BoardDetail() {
                         .map((list) => (
 
                             <div
-                                className="board-list"
+                                className={`board-list ${dragOverList === list.id ? "drop-target" : ""
+                                    }`}
                                 key={list.id}
                                 onDragOver={handleDragOver}
+                                onDragLeave={() => setDragOverList(null)}
                                 onDrop={() => handleDrop(list.id)
-                                    
+
                                 }
                             >
 
@@ -719,7 +724,8 @@ function BoardDetail() {
                                         .map((card) => (
 
                                             <div
-                                                className="card"
+                                                className={`card ${draggedCard?.card.id === card.id ? "dragging" : ""
+                                                    }`}
                                                 key={card.id}
                                                 draggable={true}
                                                 onDragStart={() =>
