@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 
 function BoardDetail() {
     const [lists, setLists] = useState([]);
+    const [backlogCards, setBacklogCards] = useState([]);
+    const [teamMembers, setTeamMembers] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Current logged-in user
+    const [currentUser, setCurrentUser] = useState(null);
 
     // Board / Workspace information
     const [board, setBoard] = useState(null);
@@ -13,10 +18,13 @@ function BoardDetail() {
         localStorage.getItem("trello_board_theme") || "theme-sunset"
     );
 
-    // Role
+    // Role (lead vs member)
     const [role, setRole] = useState(
         localStorage.getItem("trello_board_role") || "member"
     );
+
+    // Filter cards by assignee ('all' | 'my' | 'unassigned' | number)
+    const [filterAssignee, setFilterAssignee] = useState("all");
 
     // Drag and Drop
     const [draggedCard, setDraggedCard] = useState(null);
@@ -31,17 +39,27 @@ function BoardDetail() {
     const [editingListName, setEditingListName] = useState("");
     const [updatingList, setUpdatingList] = useState(false);
 
-    // Card states
+    // Card states (for lists)
     const [showCardModal, setShowCardModal] = useState(false);
     const [selectedListId, setSelectedListId] = useState(null);
-
     const [cardTitle, setCardTitle] = useState("");
     const [cardDescription, setCardDescription] = useState("");
+    const [cardAssignee, setCardAssignee] = useState("");
     const [creatingCard, setCreatingCard] = useState(false);
 
+    // Card states (for backlog)
+    const [showBacklogModal, setShowBacklogModal] = useState(false);
+    const [backlogTitle, setBacklogTitle] = useState("");
+    const [backlogDescription, setBacklogDescription] = useState("");
+    const [backlogAssignee, setBacklogAssignee] = useState("");
+    const [creatingBacklogCard, setCreatingBacklogCard] = useState(false);
+
+    // Card Edit state (applicable to list cards or backlog cards)
     const [editingCardId, setEditingCardId] = useState(null);
     const [editingCardTitle, setEditingCardTitle] = useState("");
     const [editingCardDescription, setEditingCardDescription] = useState("");
+    const [editingCardAssignee, setEditingCardAssignee] = useState("");
+    const [editingCardIsBacklog, setEditingCardIsBacklog] = useState(false);
     const [updatingCard, setUpdatingCard] = useState(false);
 
     const boardId = window.location.pathname.split("/")[2];
@@ -51,8 +69,19 @@ function BoardDetail() {
     // --------------------------------------------------
 
     useEffect(() => {
+        try {
+            const savedUser = localStorage.getItem("user");
+            if (savedUser) {
+                setCurrentUser(JSON.parse(savedUser));
+            }
+        } catch (e) {
+            console.error("Error parsing user from localStorage:", e);
+        }
+
         fetchBoard();
         fetchLists();
+        fetchBacklog();
+        fetchTeamMembers();
     }, []);
 
     // --------------------------------------------------
@@ -82,7 +111,7 @@ function BoardDetail() {
     }
 
     // --------------------------------------------------
-    // CARD STATUS HELPER (Done = Green, To Do/Unstarted = Red, Progress = Blue)
+    // CARD STATUS HELPER
     // --------------------------------------------------
 
     function getCardStatus(listName) {
@@ -109,7 +138,7 @@ function BoardDetail() {
     }
 
     // --------------------------------------------------
-    // FETCH BOARD
+    // FETCH DATA API CALLS
     // --------------------------------------------------
 
     async function fetchBoard() {
@@ -128,14 +157,11 @@ function BoardDetail() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.error || "Failed to fetch board"
-                );
+                throw new Error(data.error || "Failed to fetch board");
             }
 
             setBoard(data);
 
-            // Fetch workspace belonging to this board
             if (data.workspace_id) {
                 const workspaceResponse = await fetch(
                     `http://localhost:3000/api/workspaces/${data.workspace_id}`,
@@ -146,8 +172,7 @@ function BoardDetail() {
                     }
                 );
 
-                const workspaceData =
-                    await workspaceResponse.json();
+                const workspaceData = await workspaceResponse.json();
 
                 if (workspaceResponse.ok) {
                     setWorkspace(workspaceData);
@@ -157,10 +182,6 @@ function BoardDetail() {
             console.error("Error fetching board:", error);
         }
     }
-
-    // --------------------------------------------------
-    // FETCH LISTS + CARDS
-    // --------------------------------------------------
 
     async function fetchLists() {
         try {
@@ -178,9 +199,7 @@ function BoardDetail() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.error || "Failed to fetch lists"
-                );
+                throw new Error(data.error || "Failed to fetch lists");
             }
 
             const listsWithCards = await Promise.all(
@@ -211,8 +230,53 @@ function BoardDetail() {
         }
     }
 
+    async function fetchBacklog() {
+        try {
+            const token = localStorage.getItem("token");
+
+            const response = await fetch(
+                `http://localhost:3000/api/cards/board/${boardId}/backlog`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+
+            const data = await response.json();
+
+            if (response.ok && Array.isArray(data)) {
+                setBacklogCards(data);
+            } else {
+                setBacklogCards([]);
+            }
+        } catch (error) {
+            console.error("Error fetching backlog cards:", error);
+        }
+    }
+
+    async function fetchTeamMembers() {
+        try {
+            const token = localStorage.getItem("token");
+
+            const response = await fetch("http://localhost:3000/api/users", {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            const data = await response.json();
+
+            if (response.ok && Array.isArray(data)) {
+                setTeamMembers(data);
+            }
+        } catch (error) {
+            console.error("Error fetching team members:", error);
+        }
+    }
+
     // --------------------------------------------------
-    // CREATE LIST
+    // LIST CRUD
     // --------------------------------------------------
 
     async function handleCreateList(e) {
@@ -225,31 +289,25 @@ function BoardDetail() {
 
         try {
             setCreatingList(true);
-
             const token = localStorage.getItem("token");
 
-            const response = await fetch(
-                "http://localhost:3000/api/lists",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        name: listName,
-                        position: lists.length,
-                        board_id: Number(boardId),
-                    }),
-                }
-            );
+            const response = await fetch("http://localhost:3000/api/lists", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    name: listName,
+                    position: lists.length,
+                    board_id: Number(boardId),
+                }),
+            });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.error || "Failed to create list"
-                );
+                throw new Error(data.error || "Failed to create list");
             }
 
             const newList = {
@@ -257,11 +315,7 @@ function BoardDetail() {
                 cards: [],
             };
 
-            setLists((previousLists) => [
-                ...previousLists,
-                newList,
-            ]);
-
+            setLists((prev) => [...prev, newList]);
             setListName("");
             setShowListModal(false);
         } catch (error) {
@@ -271,10 +325,6 @@ function BoardDetail() {
             setCreatingList(false);
         }
     }
-
-    // --------------------------------------------------
-    // EDIT LIST
-    // --------------------------------------------------
 
     function openEditList(list) {
         setEditingListId(list.id);
@@ -291,16 +341,10 @@ function BoardDetail() {
 
         try {
             setUpdatingList(true);
-
             const token = localStorage.getItem("token");
 
-            const list = lists.find(
-                (item) => item.id === editingListId
-            );
-
-            if (!list) {
-                return;
-            }
+            const list = lists.find((item) => item.id === editingListId);
+            if (!list) return;
 
             const response = await fetch(
                 `http://localhost:3000/api/lists/${editingListId}`,
@@ -320,20 +364,17 @@ function BoardDetail() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.error || "Failed to update list"
-                );
+                throw new Error(data.error || "Failed to update list");
             }
 
-            setLists((previousLists) =>
-                previousLists.map((list) =>
-                    list.id === editingListId
+            setLists((prev) =>
+                prev.map((item) =>
+                    item.id === editingListId
                         ? {
-                              ...list,
-                              name: data.Lists.name,
-                              position: data.Lists.position,
+                              ...item,
+                              name: data.Lists ? data.Lists.name : editingListName,
                           }
-                        : list
+                        : item
                 )
             );
 
@@ -347,18 +388,9 @@ function BoardDetail() {
         }
     }
 
-    // --------------------------------------------------
-    // DELETE LIST
-    // --------------------------------------------------
-
     async function handleDeleteList(listId) {
-        const confirmed = window.confirm(
-            "Are you sure you want to delete this list?"
-        );
-
-        if (!confirmed) {
-            return;
-        }
+        const confirmed = window.confirm("Are you sure you want to delete this list?");
+        if (!confirmed) return;
 
         try {
             const token = localStorage.getItem("token");
@@ -376,16 +408,10 @@ function BoardDetail() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.error || "Failed to delete list"
-                );
+                throw new Error(data.error || "Failed to delete list");
             }
 
-            setLists((previousLists) =>
-                previousLists.filter(
-                    (list) => list.id !== listId
-                )
-            );
+            setLists((prev) => prev.filter((item) => item.id !== listId));
         } catch (error) {
             console.error("Error deleting list:", error);
             alert(error.message);
@@ -393,7 +419,7 @@ function BoardDetail() {
     }
 
     // --------------------------------------------------
-    // CREATE CARD
+    // CARD CREATION (BOARD LIST)
     // --------------------------------------------------
 
     async function handleCreateCard(e) {
@@ -404,58 +430,42 @@ function BoardDetail() {
             return;
         }
 
-        if (!cardDescription.trim()) {
-            alert("Card description is required!");
-            return;
-        }
-
         try {
             setCreatingCard(true);
-
             const token = localStorage.getItem("token");
 
-            const selectedList = lists.find(
-                (list) => list.id === selectedListId
-            );
+            const selectedList = lists.find((list) => list.id === selectedListId);
+            if (!selectedList) throw new Error("List not found");
 
-            if (!selectedList) {
-                throw new Error("List not found");
-            }
-
-            const response = await fetch(
-                "http://localhost:3000/api/cards",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        title: cardTitle,
-                        position: selectedList.cards.length,
-                        description: cardDescription,
-                        list_id: selectedListId,
-                    }),
-                }
-            );
+            const response = await fetch("http://localhost:3000/api/cards", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    title: cardTitle,
+                    position: selectedList.cards.length,
+                    description: cardDescription,
+                    list_id: selectedListId,
+                    board_id: Number(boardId),
+                    is_backlog: false,
+                    assigned_to: cardAssignee ? Number(cardAssignee) : null,
+                }),
+            });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.error || "Failed to create card"
-                );
+                throw new Error(data.error || "Failed to create card");
             }
 
-            setLists((previousLists) =>
-                previousLists.map((list) =>
+            setLists((prev) =>
+                prev.map((list) =>
                     list.id === selectedListId
                         ? {
                               ...list,
-                              cards: [
-                                  ...list.cards,
-                                  data,
-                              ],
+                              cards: [...list.cards, data],
                           }
                         : list
                 )
@@ -463,6 +473,7 @@ function BoardDetail() {
 
             setCardTitle("");
             setCardDescription("");
+            setCardAssignee("");
             setSelectedListId(null);
             setShowCardModal(false);
         } catch (error) {
@@ -474,15 +485,134 @@ function BoardDetail() {
     }
 
     // --------------------------------------------------
-    // EDIT CARD
+    // CARD CREATION (TEAM LEAD BACKLOG)
     // --------------------------------------------------
 
-    function openEditCard(card) {
+    async function handleCreateBacklogCard(e) {
+        e.preventDefault();
+
+        if (!backlogTitle.trim()) {
+            alert("Card title is required!");
+            return;
+        }
+
+        try {
+            setCreatingBacklogCard(true);
+            const token = localStorage.getItem("token");
+
+            const response = await fetch("http://localhost:3000/api/cards", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    title: backlogTitle,
+                    position: backlogCards.length,
+                    description: backlogDescription,
+                    board_id: Number(boardId),
+                    is_backlog: true,
+                    assigned_to: backlogAssignee ? Number(backlogAssignee) : null,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to create backlog card");
+            }
+
+            setBacklogCards((prev) => [...prev, data]);
+            setBacklogTitle("");
+            setBacklogDescription("");
+            setBacklogAssignee("");
+            setShowBacklogModal(false);
+        } catch (error) {
+            console.error("Error creating backlog card:", error);
+            alert(error.message);
+        } finally {
+            setCreatingBacklogCard(false);
+        }
+    }
+
+    // --------------------------------------------------
+    // DIRECT ASSIGNMENT (TEAM LEAD FEATURE)
+    // --------------------------------------------------
+
+    async function handleAssignCard(cardId, newAssigneeId, e) {
+        if (e) e.stopPropagation();
+
+        try {
+            const token = localStorage.getItem("token");
+
+            const response = await fetch(
+                `http://localhost:3000/api/cards/${cardId}/assign`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        assigned_to: newAssigneeId ? Number(newAssigneeId) : null,
+                    }),
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to assign card");
+            }
+
+            const updatedCard = data.card;
+
+            // Update in lists
+            setLists((prev) =>
+                prev.map((list) => ({
+                    ...list,
+                    cards: list.cards.map((card) =>
+                        card.id === cardId
+                            ? {
+                                  ...card,
+                                  assigned_to: updatedCard.assigned_to,
+                                  assigned_to_name: updatedCard.assigned_to_name,
+                                  assigned_to_email: updatedCard.assigned_to_email,
+                              }
+                            : card
+                    ),
+                }))
+            );
+
+            // Update in backlog
+            setBacklogCards((prev) =>
+                prev.map((card) =>
+                    card.id === cardId
+                        ? {
+                              ...card,
+                              assigned_to: updatedCard.assigned_to,
+                              assigned_to_name: updatedCard.assigned_to_name,
+                              assigned_to_email: updatedCard.assigned_to_email,
+                          }
+                        : card
+                )
+            );
+        } catch (error) {
+            console.error("Error assigning card:", error);
+            alert(error.message);
+        }
+    }
+
+    // --------------------------------------------------
+    // EDIT & UPDATE CARD
+    // --------------------------------------------------
+
+    function openEditCard(card, isBacklog = false) {
         setEditingCardId(card.id);
-        setEditingCardTitle(card.title);
-        setEditingCardDescription(
-            card.description || ""
-        );
+        setEditingCardTitle(card.title || "");
+        setEditingCardDescription(card.description || "");
+        setEditingCardAssignee(card.assigned_to ? String(card.assigned_to) : "");
+        setEditingCardIsBacklog(isBacklog);
     }
 
     async function handleUpdateCard(e) {
@@ -493,32 +623,9 @@ function BoardDetail() {
             return;
         }
 
-        if (!editingCardDescription.trim()) {
-            alert("Card description is required!");
-            return;
-        }
-
         try {
             setUpdatingCard(true);
-
             const token = localStorage.getItem("token");
-
-            let currentCard = null;
-
-            for (const list of lists) {
-                const foundCard = list.cards.find(
-                    (card) => card.id === editingCardId
-                );
-
-                if (foundCard) {
-                    currentCard = foundCard;
-                    break;
-                }
-            }
-
-            if (!currentCard) {
-                throw new Error("Card not found");
-            }
 
             const response = await fetch(
                 `http://localhost:3000/api/cards/${editingCardId}`,
@@ -531,8 +638,7 @@ function BoardDetail() {
                     body: JSON.stringify({
                         title: editingCardTitle,
                         description: editingCardDescription,
-                        position: currentCard.position,
-                        list_id: currentCard.list_id,
+                        assigned_to: editingCardAssignee ? Number(editingCardAssignee) : null,
                     }),
                 }
             );
@@ -540,32 +646,50 @@ function BoardDetail() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.error || "Failed to update card"
-                );
+                throw new Error(data.error || "Failed to update card");
             }
 
-            setLists((previousLists) =>
-                previousLists.map((list) => ({
+            const updatedCard = data.card;
+
+            // Update list cards
+            setLists((prev) =>
+                prev.map((list) => ({
                     ...list,
                     cards: list.cards.map((card) =>
                         card.id === editingCardId
                             ? {
                                   ...card,
-                                  title: data.card.title,
-                                  description:
-                                      data.card.description,
-                                  position:
-                                      data.card.position,
+                                  title: updatedCard.title,
+                                  description: updatedCard.description,
+                                  assigned_to: updatedCard.assigned_to,
+                                  assigned_to_name: updatedCard.assigned_to_name,
+                                  assigned_to_email: updatedCard.assigned_to_email,
                               }
                             : card
                     ),
                 }))
             );
 
+            // Update backlog cards
+            setBacklogCards((prev) =>
+                prev.map((card) =>
+                    card.id === editingCardId
+                        ? {
+                              ...card,
+                              title: updatedCard.title,
+                              description: updatedCard.description,
+                              assigned_to: updatedCard.assigned_to,
+                              assigned_to_name: updatedCard.assigned_to_name,
+                              assigned_to_email: updatedCard.assigned_to_email,
+                          }
+                        : card
+                )
+            );
+
             setEditingCardId(null);
             setEditingCardTitle("");
             setEditingCardDescription("");
+            setEditingCardAssignee("");
         } catch (error) {
             console.error("Error updating card:", error);
             alert(error.message);
@@ -578,14 +702,9 @@ function BoardDetail() {
     // DELETE CARD
     // --------------------------------------------------
 
-    async function handleDeleteCard(cardId) {
-        const confirmed = window.confirm(
-            "Are you sure you want to delete this card?"
-        );
-
-        if (!confirmed) {
-            return;
-        }
+    async function handleDeleteCard(cardId, isBacklog = false) {
+        const confirmed = window.confirm("Are you sure you want to delete this card?");
+        if (!confirmed) return;
 
         try {
             const token = localStorage.getItem("token");
@@ -603,19 +722,19 @@ function BoardDetail() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(
-                    data.error || "Failed to delete card"
-                );
+                throw new Error(data.error || "Failed to delete card");
             }
 
-            setLists((previousLists) =>
-                previousLists.map((list) => ({
-                    ...list,
-                    cards: list.cards.filter(
-                        (card) => card.id !== cardId
-                    ),
-                }))
-            );
+            if (isBacklog) {
+                setBacklogCards((prev) => prev.filter((card) => card.id !== cardId));
+            } else {
+                setLists((prev) =>
+                    prev.map((list) => ({
+                        ...list,
+                        cards: list.cards.filter((card) => card.id !== cardId),
+                    }))
+                );
+            }
         } catch (error) {
             console.error("Error deleting card:", error);
             alert(error.message);
@@ -623,58 +742,161 @@ function BoardDetail() {
     }
 
     // --------------------------------------------------
-    // DRAG START
+    // DRAG AND DROP (LISTS <-> BACKLOG)
     // --------------------------------------------------
 
     function handleDragStart(card, sourceListId) {
         setDraggedCard({
             card,
-            sourceListId,
+            sourceListId, // list.id or 'backlog'
         });
     }
-
-    // --------------------------------------------------
-    // DRAG END
-    // --------------------------------------------------
 
     function handleDragEnd() {
         setDraggedCard(null);
         setDragOverList(null);
     }
 
-    // --------------------------------------------------
-    // DRAG OVER
-    // --------------------------------------------------
-
     function handleDragOver(e, listId) {
         e.preventDefault();
         setDragOverList(listId);
     }
 
-    // --------------------------------------------------
-    // DROP CARD
-    // --------------------------------------------------
-
     async function handleDrop(targetListId) {
-        if (!draggedCard) {
-            return;
-        }
+        if (!draggedCard) return;
 
         const { card, sourceListId } = draggedCard;
 
-        if (Number(sourceListId) === Number(targetListId)) {
+        if (sourceListId === targetListId) {
             setDraggedCard(null);
             setDragOverList(null);
             return;
         }
 
-        const sourceList = lists.find(
-            (list) => list.id === sourceListId
-        );
+        const token = localStorage.getItem("token");
 
-        const targetList = lists.find(
-            (list) => list.id === targetListId
-        );
+        // CASE 1: Dropping INTO Backlog (from a list)
+        if (targetListId === "backlog") {
+            // Remove from source list
+            setLists((prev) =>
+                prev.map((list) =>
+                    list.id === sourceListId
+                        ? {
+                              ...list,
+                              cards: list.cards.filter((item) => item.id !== card.id),
+                          }
+                        : list
+                )
+            );
+
+            // Add to backlog
+            const updatedCard = {
+                ...card,
+                list_id: null,
+                is_backlog: true,
+                position: backlogCards.length,
+            };
+            setBacklogCards((prev) => [...prev, updatedCard]);
+
+            setDraggedCard(null);
+            setDragOverList(null);
+
+            try {
+                const response = await fetch(
+                    `http://localhost:3000/api/cards/${card.id}`,
+                    {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            title: card.title,
+                            description: card.description,
+                            position: backlogCards.length,
+                            list_id: null,
+                            board_id: Number(boardId),
+                            is_backlog: true,
+                        }),
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error("Failed to move card to backlog");
+                }
+            } catch (err) {
+                console.error("Error moving card to backlog:", err);
+                fetchLists();
+                fetchBacklog();
+            }
+            return;
+        }
+
+        // CASE 2: Dropping FROM Backlog (into a list)
+        if (sourceListId === "backlog") {
+            const targetList = lists.find((l) => l.id === targetListId);
+            if (!targetList) return;
+
+            // Remove from backlog
+            setBacklogCards((prev) => prev.filter((item) => item.id !== card.id));
+
+            const newPosition = targetList.cards.length;
+            const updatedCard = {
+                ...card,
+                list_id: targetListId,
+                is_backlog: false,
+                position: newPosition,
+            };
+
+            // Add to target list
+            setLists((prev) =>
+                prev.map((l) =>
+                    l.id === targetListId
+                        ? {
+                              ...l,
+                              cards: [...l.cards, updatedCard],
+                          }
+                        : l
+                )
+            );
+
+            setDraggedCard(null);
+            setDragOverList(null);
+
+            try {
+                const response = await fetch(
+                    `http://localhost:3000/api/cards/${card.id}`,
+                    {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            title: card.title,
+                            description: card.description,
+                            position: newPosition,
+                            list_id: targetListId,
+                            board_id: Number(boardId),
+                            is_backlog: false,
+                        }),
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error("Failed to move card into list");
+                }
+            } catch (err) {
+                console.error("Error moving card from backlog:", err);
+                fetchLists();
+                fetchBacklog();
+            }
+            return;
+        }
+
+        // CASE 3: Dropping between two board lists
+        const sourceList = lists.find((l) => l.id === sourceListId);
+        const targetList = lists.find((l) => l.id === targetListId);
 
         if (!sourceList || !targetList) {
             setDraggedCard(null);
@@ -682,40 +904,23 @@ function BoardDetail() {
             return;
         }
 
-        const updatedSourceCards = sourceList.cards.filter(
-            (item) => item.id !== card.id
-        );
-
+        const updatedSourceCards = sourceList.cards.filter((item) => item.id !== card.id);
         const newPosition = targetList.cards.length;
-
         const updatedCard = {
             ...card,
             list_id: targetListId,
             position: newPosition,
         };
+        const updatedTargetCards = [...targetList.cards, updatedCard];
 
-        const updatedTargetCards = [
-            ...targetList.cards,
-            updatedCard,
-        ];
-
-        // Update UI immediately
-        setLists((previousLists) =>
-            previousLists.map((list) => {
+        setLists((prev) =>
+            prev.map((list) => {
                 if (list.id === sourceListId) {
-                    return {
-                        ...list,
-                        cards: updatedSourceCards,
-                    };
+                    return { ...list, cards: updatedSourceCards };
                 }
-
                 if (list.id === targetListId) {
-                    return {
-                        ...list,
-                        cards: updatedTargetCards,
-                    };
+                    return { ...list, cards: updatedTargetCards };
                 }
-
                 return list;
             })
         );
@@ -723,10 +928,7 @@ function BoardDetail() {
         setDraggedCard(null);
         setDragOverList(null);
 
-        // Update database
         try {
-            const token = localStorage.getItem("token");
-
             const response = await fetch(
                 `http://localhost:3000/api/cards/${card.id}`,
                 {
@@ -744,33 +946,84 @@ function BoardDetail() {
                 }
             );
 
-            const data = await response.json();
-
             if (!response.ok) {
-                throw new Error(
-                    data.error || "Failed to move card"
-                );
+                throw new Error("Failed to update card list");
             }
         } catch (error) {
             console.error("Error moving card:", error);
-
-            // Restore UI from database
             fetchLists();
-
-            alert(error.message);
         }
     }
 
     // --------------------------------------------------
-    // BACK TO BOARDS
+    // CARD FILTER HELPER
     // --------------------------------------------------
 
-    function handleBack() {
-        if (board?.workspace_id) {
-            window.location.href = `/boards/${board.workspace_id}`;
-        } else {
-            window.location.href = "/";
+    function shouldShowCard(card) {
+        if (filterAssignee === "all") return true;
+        if (filterAssignee === "unassigned") return !card.assigned_to;
+        if (filterAssignee === "my") {
+            return currentUser && card.assigned_to === currentUser.user_id;
         }
+        return Number(card.assigned_to) === Number(filterAssignee);
+    }
+
+    // --------------------------------------------------
+    // RENDER HELPERS
+    // --------------------------------------------------
+
+    function renderAssigneeBadge(card) {
+        return (
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginTop: "8px",
+                    gap: "6px",
+                }}
+            >
+                <div
+                    className={`card-assignee-badge ${card.assigned_to ? "is-assigned" : ""}`}
+                    title={
+                        card.assigned_to
+                            ? `Assigned to: ${card.assigned_to_name || "User #" + card.assigned_to}`
+                            : "Not assigned"
+                    }
+                >
+                    <span className="card-assignee-avatar">
+                        {card.assigned_to_name
+                            ? card.assigned_to_name[0].toUpperCase()
+                            : "?"}
+                    </span>
+                    <span>
+                        {card.assigned_to_name
+                            ? card.assigned_to_name
+                            : "Unassigned"}
+                    </span>
+                </div>
+
+                {/* Team Lead quick assign dropdown */}
+                {role === "lead" && (
+                    <select
+                        className="card-assign-select"
+                        value={card.assigned_to || ""}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) =>
+                            handleAssignCard(card.id, e.target.value, e)
+                        }
+                        title="Provide card to team member"
+                    >
+                        <option value="">+ Assign to...</option>
+                        {teamMembers.map((member) => (
+                            <option key={member.user_id} value={member.user_id}>
+                                {member.name}
+                            </option>
+                        ))}
+                    </select>
+                )}
+            </div>
+        );
     }
 
     // --------------------------------------------------
@@ -779,389 +1032,362 @@ function BoardDetail() {
 
     if (loading) {
         return (
-            <div className="main-content">
-                <p style={{ color: "white" }}>
-                    Loading board...
-                </p>
+            <div className="main-content" style={{ padding: "40px", color: "white" }}>
+                <p>Loading board &amp; workspace details...</p>
             </div>
         );
     }
 
     // --------------------------------------------------
-    // RENDER
+    // MAIN RENDER
     // --------------------------------------------------
 
     return (
         <>
             {/* NAVBAR */}
             <header className="navbar">
-
                 <a className="logo" href="/">
                     Trello Clone
                 </a>
 
-                <div className="navbar-center">
-
-                    <a
-                        href={
-                            board?.workspace_id
-                                ? `/boards/${board.workspace_id}`
-                                : "/"
-                        }
-                        className="crumb-btn"
-                    >
-                        {workspace?.name || "Workspace"}
-                    </a>
-
-                    <span className="crumb-sep">
-                        /
-                    </span>
-
-                    <span className="crumb-current">
-                        {board?.name || "Board"}
-                    </span>
-
-                </div>
-
-                <div className="user-section">
-
-                    {/* THEME PICKER */}
-                    <div
-                        className="theme-picker"
-                        id="themePicker"
-                        title="Board Theme"
-                    >
-
+                <div className="nav-right">
+                    {/* THEME SELECTOR */}
+                    <div className="theme-selector" id="themeSelector">
                         <button
-                            className={`theme-btn sunset ${
-                                theme === "theme-sunset"
-                                    ? "active"
-                                    : ""
-                            }`}
-                            data-theme="theme-sunset"
-                            title="Pink Sunset"
-                            onClick={() =>
-                                changeTheme("theme-sunset")
-                            }
+                            className={`theme-btn sunset ${theme === "theme-sunset" ? "active" : ""}`}
+                            title="Sunset Pink"
+                            onClick={() => changeTheme("theme-sunset")}
                         />
-
                         <button
-                            className={`theme-btn magenta ${
-                                theme === "theme-magenta"
-                                    ? "active"
-                                    : ""
-                            }`}
-                            data-theme="theme-magenta"
+                            className={`theme-btn magenta ${theme === "theme-magenta" ? "active" : ""}`}
                             title="Neon Magenta"
-                            onClick={() =>
-                                changeTheme("theme-magenta")
-                            }
+                            onClick={() => changeTheme("theme-magenta")}
                         />
-
                         <button
-                            className={`theme-btn ocean ${
-                                theme === "theme-ocean"
-                                    ? "active"
-                                    : ""
-                            }`}
-                            data-theme="theme-ocean"
+                            className={`theme-btn ocean ${theme === "theme-ocean" ? "active" : ""}`}
                             title="Ocean Blue"
-                            onClick={() =>
-                                changeTheme("theme-ocean")
-                            }
+                            onClick={() => changeTheme("theme-ocean")}
                         />
-
                         <button
-                            className={`theme-btn midnight ${
-                                theme === "theme-midnight"
-                                    ? "active"
-                                    : ""
-                            }`}
-                            data-theme="theme-midnight"
+                            className={`theme-btn midnight ${theme === "theme-midnight" ? "active" : ""}`}
                             title="Midnight Violet"
-                            onClick={() =>
-                                changeTheme("theme-midnight")
-                            }
+                            onClick={() => changeTheme("theme-midnight")}
                         />
-
                     </div>
 
                     {/* ROLE TOGGLE */}
-                    <div
-                        className="role-toggle"
-                        id="roleToggle"
-                    >
-
+                    <div className="role-toggle" id="roleToggle">
                         <button
-                            className={`role-btn ${
-                                role === "member"
-                                    ? "active"
-                                    : ""
-                            }`}
-                            onClick={() =>
-                                changeRole("member")
-                            }
+                            className={`role-btn ${role === "member" ? "active" : ""}`}
+                            onClick={() => changeRole("member")}
                         >
                             Team Member
                         </button>
-
                         <button
-                            className={`role-btn ${
-                                role === "lead"
-                                    ? "active"
-                                    : ""
-                            }`}
-                            onClick={() =>
-                                changeRole("lead")
-                            }
+                            className={`role-btn ${role === "lead" ? "active" : ""}`}
+                            onClick={() => changeRole("lead")}
                         >
-                            Team Lead
+                            👑 Team Lead
                         </button>
-
                     </div>
 
                     {/* AVATAR */}
                     <div
                         className="avatar"
-                        title="Active User"
+                        title={currentUser ? currentUser.name : "Active User"}
                     >
-                        T
+                        {currentUser?.name ? currentUser.name[0].toUpperCase() : "U"}
                     </div>
-
                 </div>
-
             </header>
 
             {/* MAIN APPLICATION */}
             <div className="app-container">
-
                 {/* SIDEBAR */}
                 <aside className="sidebar">
-
-                    <h3>
-                        Workspace
-                    </h3>
-
+                    <h3>Workspace</h3>
                     <div className="workspace-name">
-                        {workspace?.name ||
-                            "My Workspace"}
+                        {workspace?.name || "My Workspace"}
                     </div>
 
                     <nav>
-
                         <a
                             href={
                                 board?.workspace_id
                                     ? `/boards/${board.workspace_id}`
-                                    : "/"
+                                    : "/workspace"
                             }
                         >
                             📋 Boards
                         </a>
-
+                        <a href="/workspace">
+                            📁 Workspaces
+                        </a>
                         <a
                             href="#"
-                            style={{ opacity: 0.8 }}
-                            onClick={(e) =>
-                                e.preventDefault()
-                            }
+                            onClick={(e) => {
+                                e.preventDefault();
+                                window.history.pushState({}, "", "/");
+                                window.location.reload();
+                            }}
                         >
-                            👥 Members
+                            🏠 Landing Page
                         </a>
-
-                        <a
-                            href="#"
-                            style={{ opacity: 0.8 }}
-                            onClick={(e) =>
-                                e.preventDefault()
-                            }
-                        >
-                            ⚙️ Settings
-                        </a>
-
                     </nav>
 
+                    {/* TEAM MEMBERS SUMMARY IN SIDEBAR */}
+                    <div style={{ marginTop: "30px", borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: "16px" }}>
+                        <div style={{ fontSize: "12px", fontWeight: "700", color: "rgba(255,255,255,0.8)", marginBottom: "8px" }}>
+                            👥 Team Members ({teamMembers.length})
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "160px", overflowY: "auto" }}>
+                            {teamMembers.map((member) => (
+                                <div
+                                    key={member.user_id}
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "8px",
+                                        fontSize: "12px",
+                                        color: "white",
+                                        opacity: 0.9,
+                                    }}
+                                >
+                                    <span className="card-assignee-avatar" style={{ width: "16px", height: "16px", fontSize: "8px" }}>
+                                        {member.name ? member.name[0].toUpperCase() : "U"}
+                                    </span>
+                                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {member.name}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </aside>
 
                 {/* MAIN CONTENT */}
                 <main className="main-content">
-
                     {/* BOARD HEADER */}
                     <section className="board-header">
-
                         <div>
-
-                            <h1>
-                                {board?.name ||
-                                    "Board"}
-                            </h1>
-
-                            <p>
-                                {workspace?.name ||
-                                    "Workspace"}{" "}
-                                /{" "}
-                                {board?.name ||
-                                    "Board"}
+                            <h1>{board?.name || "Board"}</h1>
+                            <p style={{ margin: "2px 0 8px 0" }}>
+                                {workspace?.name || "Workspace"} / {board?.name || "Board"}
                             </p>
 
+                            {/* ASSIGNEE FILTER BAR */}
+                            <div className="filter-bar">
+                                <span style={{ fontSize: "12px", fontWeight: "600", color: "rgba(255,255,255,0.8)" }}>
+                                    🔍 Filter:
+                                </span>
+                                <button
+                                    className={`filter-btn ${filterAssignee === "all" ? "active" : ""}`}
+                                    onClick={() => setFilterAssignee("all")}
+                                >
+                                    All Cards
+                                </button>
+                                <button
+                                    className={`filter-btn ${filterAssignee === "my" ? "active" : ""}`}
+                                    onClick={() => setFilterAssignee("my")}
+                                >
+                                    👤 My Tasks
+                                </button>
+                                <button
+                                    className={`filter-btn ${filterAssignee === "unassigned" ? "active" : ""}`}
+                                    onClick={() => setFilterAssignee("unassigned")}
+                                >
+                                    Unassigned
+                                </button>
+                                {teamMembers.length > 0 && (
+                                    <select
+                                        className="card-assign-select"
+                                        value={filterAssignee}
+                                        onChange={(e) => setFilterAssignee(e.target.value)}
+                                        style={{ background: "rgba(255,255,255,0.2)", color: "white", border: "1px solid rgba(255,255,255,0.4)" }}
+                                    >
+                                        <option value="all" style={{ color: "black" }}>Filter by Member...</option>
+                                        {teamMembers.map((m) => (
+                                            <option key={m.user_id} value={m.user_id} style={{ color: "black" }}>
+                                                {m.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
                         </div>
 
+                        <div style={{ display: "flex", gap: "10px" }}>
+                            {role === "lead" && (
+                                <button
+                                    className="add-backlog-btn"
+                                    onClick={() => setShowBacklogModal(true)}
+                                    id="addBacklogCardHeaderBtn"
+                                >
+                                    + Add to Backlog
+                                </button>
+                            )}
+                            <button
+                                className="primary-btn"
+                                onClick={() => setShowListModal(true)}
+                            >
+                                + Add List
+                            </button>
+                        </div>
                     </section>
 
-                    {/* BACKLOG */}
+                    {/* TEAM LEAD BACKLOG TRAY */}
                     {role === "lead" && (
                         <section className="backlog-panel">
-
                             <div className="backlog-header">
-
                                 <div>
-
                                     <h2>
-                                        Team Lead Backlog
+                                        Team Lead Backlog ({backlogCards.length})
                                     </h2>
-
-                                    <p
-                                        className="muted"
-                                        id="backlogHint"
-                                    >
-                                        Drag a card into a
-                                        list to start
-                                        working on it.
+                                    <p className="muted" id="backlogHint">
+                                        Stage upcoming work &amp; assign to team members. Drag cards into board lists when ready.
                                     </p>
-
                                 </div>
-
+                                <button
+                                    className="add-backlog-btn"
+                                    onClick={() => setShowBacklogModal(true)}
+                                >
+                                    + New Backlog Task
+                                </button>
                             </div>
 
                             <div
-                                className="backlog-cards"
+                                className={`backlog-cards ${dragOverList === "backlog" ? "drop-target" : ""}`}
                                 id="backlogCards"
+                                onDragOver={(e) => handleDragOver(e, "backlog")}
+                                onDragLeave={() => setDragOverList(null)}
+                                onDrop={() => handleDrop("backlog")}
                             >
-                                <p
-                                    style={{
-                                        color: "rgba(255,255,255,0.7)",
-                                        fontSize: "13px",
-                                    }}
-                                >
-                                    No backlog cards.
-                                </p>
-                            </div>
+                                {backlogCards.length === 0 ? (
+                                    <p
+                                        style={{
+                                            color: "rgba(255,255,255,0.7)",
+                                            fontSize: "13px",
+                                            padding: "16px 0",
+                                        }}
+                                    >
+                                        No backlog cards. Click "+ New Backlog Task" to stage work for your team or drag cards here.
+                                    </p>
+                                ) : (
+                                    backlogCards
+                                        .filter(shouldShowCard)
+                                        .map((card) => (
+                                            <div
+                                                className={`card card-status-todo ${
+                                                    draggedCard?.card.id === card.id
+                                                        ? "dragging"
+                                                        : ""
+                                                }`}
+                                                key={card.id}
+                                                draggable={true}
+                                                onDragStart={() =>
+                                                    handleDragStart(card, "backlog")
+                                                }
+                                                onDragEnd={handleDragEnd}
+                                            >
+                                                <div
+                                                    style={{
+                                                        display: "flex",
+                                                        justifyContent: "space-between",
+                                                        alignItems: "center",
+                                                        marginBottom: "6px",
+                                                    }}
+                                                >
+                                                    <span className="card-status-badge">
+                                                        <span>👑</span>
+                                                        <span>Backlog</span>
+                                                    </span>
 
+                                                    <div>
+                                                        <button
+                                                            className="card-action-btn"
+                                                            onClick={() => openEditCard(card, true)}
+                                                            title="Edit backlog card"
+                                                        >
+                                                            ✏️
+                                                        </button>
+                                                        <button
+                                                            className="card-action-btn"
+                                                            onClick={() => handleDeleteCard(card.id, true)}
+                                                            title="Delete backlog card"
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <h4>{card.title}</h4>
+                                                {card.description && <p>{card.description}</p>}
+
+                                                {renderAssigneeBadge(card)}
+
+                                                <div className="card-footer" style={{ marginTop: "8px" }}>
+                                                    <span>Backlog #{card.id}</span>
+                                                    <span>Drag to List &rarr;</span>
+                                                </div>
+                                            </div>
+                                        ))
+                                )}
+                            </div>
                         </section>
                     )}
 
                     {/* BOARD LISTS */}
-                    <section
-                        className="board"
-                        id="boardLists"
-                    >
-
+                    <section className="board" id="boardLists">
                         {lists.length === 0 ? (
-
-                            <div
-                                className="empty-state"
-                                style={{
-                                    color: "white",
-                                }}
-                            >
-                                No lists yet — create
-                                your first list.
+                            <div className="empty-state" style={{ color: "white" }}>
+                                No lists yet — click "+ Add List" to create your first list.
                             </div>
-
                         ) : (
-
                             [...lists]
-                                .sort(
-                                    (a, b) =>
-                                        Number(
-                                            a.position
-                                        ) -
-                                        Number(
-                                            b.position
-                                        )
-                                )
-                                .map((list) => (
+                                .sort((a, b) => Number(a.position) - Number(b.position))
+                                .map((list) => {
+                                    const visibleCards = [...list.cards]
+                                        .filter(shouldShowCard)
+                                        .sort((a, b) => Number(a.position) - Number(b.position));
 
-                                    <div
-                                        className="list"
-                                        key={list.id}
-                                    >
+                                    return (
+                                        <div className="list" key={list.id}>
+                                            {/* LIST HEADER */}
+                                            <div className="list-header">
+                                                <h3>{list.name}</h3>
+                                                <span>{visibleCards.length}</span>
 
-                                        {/* LIST HEADER */}
-                                        <div className="list-header">
+                                                <button
+                                                    onClick={() => openEditList(list)}
+                                                    title="Edit list"
+                                                >
+                                                    ✏️
+                                                </button>
 
-                                            <h3>
-                                                {list.name}
-                                            </h3>
+                                                <button
+                                                    onClick={() => handleDeleteList(list.id)}
+                                                    title="Delete list"
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </div>
 
-                                            <span>
-                                                {
-                                                    list.cards
-                                                        .length
+                                            {/* CARDS */}
+                                            <div
+                                                className={`cards ${
+                                                    dragOverList === list.id
+                                                        ? "drop-target"
+                                                        : ""
+                                                }`}
+                                                onDragOver={(e) =>
+                                                    handleDragOver(e, list.id)
                                                 }
-                                            </span>
-
-                                            <button
-                                                onClick={() =>
-                                                    openEditList(
-                                                        list
-                                                    )
+                                                onDragLeave={() =>
+                                                    setDragOverList(null)
                                                 }
-                                                title="Edit list"
+                                                onDrop={() => handleDrop(list.id)}
                                             >
-                                                ✏️
-                                            </button>
-
-                                            <button
-                                                onClick={() =>
-                                                    handleDeleteList(
-                                                        list.id
-                                                    )
-                                                }
-                                                title="Delete list"
-                                            >
-                                                🗑️
-                                            </button>
-
-                                        </div>
-
-                                        {/* CARDS */}
-                                        <div
-                                            className={`cards ${
-                                                dragOverList ===
-                                                list.id
-                                                    ? "drop-target"
-                                                    : ""
-                                            }`}
-                                            onDragOver={(e) =>
-                                                handleDragOver(
-                                                    e,
-                                                    list.id
-                                                )
-                                            }
-                                            onDragLeave={() =>
-                                                setDragOverList(
-                                                    null
-                                                )
-                                            }
-                                            onDrop={() =>
-                                                handleDrop(
-                                                    list.id
-                                                )
-                                            }
-                                        >
-
-                                            {[...list.cards]
-                                                .sort(
-                                                    (a, b) =>
-                                                        Number(
-                                                            a.position
-                                                        ) -
-                                                        Number(
-                                                            b.position
-                                                        )
-                                                )
-                                                .map((card) => {
+                                                {visibleCards.map((card) => {
                                                     const cardStatus = getCardStatus(list.name);
                                                     return (
                                                         <div
@@ -1173,14 +1399,9 @@ function BoardDetail() {
                                                             key={card.id}
                                                             draggable={true}
                                                             onDragStart={() =>
-                                                                handleDragStart(
-                                                                    card,
-                                                                    list.id
-                                                                )
+                                                                handleDragStart(card, list.id)
                                                             }
-                                                            onDragEnd={
-                                                                handleDragEnd
-                                                            }
+                                                            onDragEnd={handleDragEnd}
                                                         >
                                                             {/* CARD TOP STATUS & ACTIONS */}
                                                             <div
@@ -1200,9 +1421,7 @@ function BoardDetail() {
                                                                     <button
                                                                         className="card-action-btn"
                                                                         onClick={() =>
-                                                                            openEditCard(
-                                                                                card
-                                                                            )
+                                                                            openEditCard(card, false)
                                                                         }
                                                                         title="Edit card"
                                                                     >
@@ -1212,9 +1431,7 @@ function BoardDetail() {
                                                                     <button
                                                                         className="card-action-btn"
                                                                         onClick={() =>
-                                                                            handleDeleteCard(
-                                                                                card.id
-                                                                            )
+                                                                            handleDeleteCard(card.id, false)
                                                                         }
                                                                         title="Delete card"
                                                                     >
@@ -1230,123 +1447,83 @@ function BoardDetail() {
                                                                 <p>{card.description}</p>
                                                             )}
 
+                                                            {/* ASSIGNEE BADGE & SELECT */}
+                                                            {renderAssigneeBadge(card)}
+
                                                             {/* CARD FOOTER */}
-                                                            <div className="card-footer">
+                                                            <div className="card-footer" style={{ marginTop: "8px" }}>
                                                                 <span>Card #{card.id}</span>
                                                                 <span>↕ {card.position}</span>
                                                             </div>
                                                         </div>
                                                     );
                                                 })}
+                                            </div>
 
+                                            {/* ADD CARD */}
+                                            <button
+                                                className="add-card"
+                                                onClick={() => {
+                                                    setSelectedListId(list.id);
+                                                    setShowCardModal(true);
+                                                }}
+                                            >
+                                                + Add Card
+                                            </button>
                                         </div>
-
-                                        {/* ADD CARD */}
-                                        <button
-                                            className="add-card"
-                                            onClick={() => {
-                                                setSelectedListId(
-                                                    list.id
-                                                );
-                                                setShowCardModal(
-                                                    true
-                                                );
-                                            }}
-                                        >
-                                            + Add Card
-                                        </button>
-
-                                    </div>
-
-                                ))
-
+                                    );
+                                })
                         )}
 
-                        {/* ADD LIST */}
+                        {/* ADD LIST BUTTON */}
                         <button
                             className="add-list"
-                            onClick={() =>
-                                setShowListModal(true)
-                            }
+                            onClick={() => setShowListModal(true)}
                         >
                             + Add another list
                         </button>
-
                     </section>
-
                 </main>
-
             </div>
 
             {/* CREATE LIST MODAL */}
             {showListModal && (
                 <div
                     className="modal-overlay"
-                    onClick={() =>
-                        setShowListModal(false)
-                    }
+                    onClick={() => setShowListModal(false)}
                 >
-
-                    <div
-                        className="modal"
-                        onClick={(e) =>
-                            e.stopPropagation()
-                        }
-                    >
-
-                        <h3>
-                            New list
-                        </h3>
-
-                        <form
-                            onSubmit={handleCreateList}
-                        >
-
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>New list</h3>
+                        <form onSubmit={handleCreateList}>
                             <input
                                 type="text"
-                                placeholder="List title (e.g. In Review)"
+                                placeholder="List title (e.g. In Review, QA)"
                                 value={listName}
-                                onChange={(e) =>
-                                    setListName(
-                                        e.target.value
-                                    )
-                                }
+                                onChange={(e) => setListName(e.target.value)}
                                 autoFocus
                             />
 
                             <div className="modal-actions">
-
                                 <button
                                     type="button"
                                     className="ghost-btn"
                                     onClick={() => {
-                                        setShowListModal(
-                                            false
-                                        );
+                                        setShowListModal(false);
                                         setListName("");
                                     }}
                                 >
                                     Cancel
                                 </button>
-
                                 <button
                                     type="submit"
                                     className="primary-btn"
-                                    disabled={
-                                        creatingList
-                                    }
+                                    disabled={creatingList}
                                 >
-                                    {creatingList
-                                        ? "Creating..."
-                                        : "Add List"}
+                                    {creatingList ? "Creating..." : "Add List"}
                                 </button>
-
                             </div>
-
                         </form>
-
                     </div>
-
                 </div>
             )}
 
@@ -1354,115 +1531,57 @@ function BoardDetail() {
             {editingListId !== null && (
                 <div
                     className="modal-overlay"
-                    onClick={() =>
-                        setEditingListId(null)
-                    }
+                    onClick={() => setEditingListId(null)}
                 >
-
-                    <div
-                        className="modal"
-                        onClick={(e) =>
-                            e.stopPropagation()
-                        }
-                    >
-
-                        <h3>
-                            Edit list
-                        </h3>
-
-                        <form
-                            onSubmit={
-                                handleUpdateList
-                            }
-                        >
-
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>Edit list</h3>
+                        <form onSubmit={handleUpdateList}>
                             <input
                                 type="text"
                                 placeholder="List title"
-                                value={
-                                    editingListName
-                                }
-                                onChange={(e) =>
-                                    setEditingListName(
-                                        e.target.value
-                                    )
-                                }
+                                value={editingListName}
+                                onChange={(e) => setEditingListName(e.target.value)}
                                 autoFocus
                             />
 
                             <div className="modal-actions">
-
                                 <button
                                     type="button"
                                     className="ghost-btn"
                                     onClick={() => {
-                                        setEditingListId(
-                                            null
-                                        );
-                                        setEditingListName(
-                                            ""
-                                        );
+                                        setEditingListId(null);
+                                        setEditingListName("");
                                     }}
                                 >
                                     Cancel
                                 </button>
-
                                 <button
                                     type="submit"
                                     className="primary-btn"
-                                    disabled={
-                                        updatingList
-                                    }
+                                    disabled={updatingList}
                                 >
-                                    {updatingList
-                                        ? "Updating..."
-                                        : "Update List"}
+                                    {updatingList ? "Updating..." : "Update List"}
                                 </button>
-
                             </div>
-
                         </form>
-
                     </div>
-
                 </div>
             )}
 
-            {/* CREATE CARD MODAL */}
+            {/* CREATE CARD MODAL (FOR LISTS) */}
             {showCardModal && (
                 <div
                     className="modal-overlay"
-                    onClick={() =>
-                        setShowCardModal(false)
-                    }
+                    onClick={() => setShowCardModal(false)}
                 >
-
-                    <div
-                        className="modal"
-                        onClick={(e) =>
-                            e.stopPropagation()
-                        }
-                    >
-
-                        <h3>
-                            New card
-                        </h3>
-
-                        <form
-                            onSubmit={
-                                handleCreateCard
-                            }
-                        >
-
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>New card</h3>
+                        <form onSubmit={handleCreateCard}>
                             <input
                                 type="text"
                                 placeholder="Card title"
                                 value={cardTitle}
-                                onChange={(e) =>
-                                    setCardTitle(
-                                        e.target.value
-                                    )
-                                }
+                                onChange={(e) => setCardTitle(e.target.value)}
                                 maxLength={80}
                                 autoFocus
                             />
@@ -1470,56 +1589,135 @@ function BoardDetail() {
                             <textarea
                                 placeholder="Description"
                                 rows={3}
-                                value={
-                                    cardDescription
-                                }
-                                onChange={(e) =>
-                                    setCardDescription(
-                                        e.target.value
-                                    )
-                                }
+                                value={cardDescription}
+                                onChange={(e) => setCardDescription(e.target.value)}
                                 maxLength={300}
                             />
 
-                            <div className="modal-actions">
+                            <div style={{ marginBottom: "16px" }}>
+                                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "6px", color: "var(--text-secondary)" }}>
+                                    Assign to Team Member:
+                                </label>
+                                <select
+                                    value={cardAssignee}
+                                    onChange={(e) => setCardAssignee(e.target.value)}
+                                    style={{
+                                        width: "100%",
+                                        padding: "8px 12px",
+                                        borderRadius: "var(--radius-md)",
+                                        border: "1px solid var(--border-default)",
+                                        fontSize: "14px",
+                                    }}
+                                >
+                                    <option value="">Unassigned</option>
+                                    {teamMembers.map((member) => (
+                                        <option key={member.user_id} value={member.user_id}>
+                                            {member.name} ({member.email})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
+                            <div className="modal-actions">
                                 <button
                                     type="button"
                                     className="ghost-btn"
                                     onClick={() => {
-                                        setShowCardModal(
-                                            false
-                                        );
+                                        setShowCardModal(false);
                                         setCardTitle("");
-                                        setCardDescription(
-                                            ""
-                                        );
-                                        setSelectedListId(
-                                            null
-                                        );
+                                        setCardDescription("");
+                                        setCardAssignee("");
+                                        setSelectedListId(null);
                                     }}
                                 >
                                     Cancel
                                 </button>
-
                                 <button
                                     type="submit"
                                     className="primary-btn"
-                                    disabled={
-                                        creatingCard
-                                    }
+                                    disabled={creatingCard}
                                 >
-                                    {creatingCard
-                                        ? "Creating..."
-                                        : "Save Card"}
+                                    {creatingCard ? "Creating..." : "Save Card"}
                                 </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
+            {/* CREATE BACKLOG CARD MODAL (TEAM LEAD) */}
+            {showBacklogModal && (
+                <div
+                    className="modal-overlay"
+                    onClick={() => setShowBacklogModal(false)}
+                >
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>👑 Stage Team Lead Backlog Card</h3>
+                        <form onSubmit={handleCreateBacklogCard}>
+                            <input
+                                type="text"
+                                placeholder="Task title (e.g. Implement OAuth Flow)"
+                                value={backlogTitle}
+                                onChange={(e) => setBacklogTitle(e.target.value)}
+                                maxLength={80}
+                                autoFocus
+                            />
+
+                            <textarea
+                                placeholder="Task details / acceptance criteria"
+                                rows={3}
+                                value={backlogDescription}
+                                onChange={(e) => setBacklogDescription(e.target.value)}
+                                maxLength={300}
+                            />
+
+                            <div style={{ marginBottom: "16px" }}>
+                                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "6px", color: "var(--text-secondary)" }}>
+                                    Provide / Assign to Team Member:
+                                </label>
+                                <select
+                                    value={backlogAssignee}
+                                    onChange={(e) => setBacklogAssignee(e.target.value)}
+                                    style={{
+                                        width: "100%",
+                                        padding: "8px 12px",
+                                        borderRadius: "var(--radius-md)",
+                                        border: "1px solid var(--border-default)",
+                                        fontSize: "14px",
+                                    }}
+                                >
+                                    <option value="">Unassigned (Open Backlog)</option>
+                                    {teamMembers.map((member) => (
+                                        <option key={member.user_id} value={member.user_id}>
+                                            {member.name} ({member.email})
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
 
+                            <div className="modal-actions">
+                                <button
+                                    type="button"
+                                    className="ghost-btn"
+                                    onClick={() => {
+                                        setShowBacklogModal(false);
+                                        setBacklogTitle("");
+                                        setBacklogDescription("");
+                                        setBacklogAssignee("");
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="primary-btn"
+                                    disabled={creatingBacklogCard}
+                                >
+                                    {creatingBacklogCard ? "Staging..." : "Stage Backlog Card"}
+                                </button>
+                            </div>
                         </form>
-
                     </div>
-
                 </div>
             )}
 
@@ -1527,39 +1725,16 @@ function BoardDetail() {
             {editingCardId !== null && (
                 <div
                     className="modal-overlay"
-                    onClick={() =>
-                        setEditingCardId(null)
-                    }
+                    onClick={() => setEditingCardId(null)}
                 >
-
-                    <div
-                        className="modal"
-                        onClick={(e) =>
-                            e.stopPropagation()
-                        }
-                    >
-
-                        <h3>
-                            Edit card
-                        </h3>
-
-                        <form
-                            onSubmit={
-                                handleUpdateCard
-                            }
-                        >
-
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <h3>Edit Card</h3>
+                        <form onSubmit={handleUpdateCard}>
                             <input
                                 type="text"
                                 placeholder="Card title"
-                                value={
-                                    editingCardTitle
-                                }
-                                onChange={(e) =>
-                                    setEditingCardTitle(
-                                        e.target.value
-                                    )
-                                }
+                                value={editingCardTitle}
+                                onChange={(e) => setEditingCardTitle(e.target.value)}
                                 maxLength={80}
                                 autoFocus
                             />
@@ -1567,58 +1742,60 @@ function BoardDetail() {
                             <textarea
                                 placeholder="Description"
                                 rows={3}
-                                value={
-                                    editingCardDescription
-                                }
-                                onChange={(e) =>
-                                    setEditingCardDescription(
-                                        e.target.value
-                                    )
-                                }
+                                value={editingCardDescription}
+                                onChange={(e) => setEditingCardDescription(e.target.value)}
                                 maxLength={300}
                             />
 
-                            <div className="modal-actions">
+                            <div style={{ marginBottom: "16px" }}>
+                                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "6px", color: "var(--text-secondary)" }}>
+                                    Assigned Team Member:
+                                </label>
+                                <select
+                                    value={editingCardAssignee}
+                                    onChange={(e) => setEditingCardAssignee(e.target.value)}
+                                    style={{
+                                        width: "100%",
+                                        padding: "8px 12px",
+                                        borderRadius: "var(--radius-md)",
+                                        border: "1px solid var(--border-default)",
+                                        fontSize: "14px",
+                                    }}
+                                >
+                                    <option value="">Unassigned</option>
+                                    {teamMembers.map((member) => (
+                                        <option key={member.user_id} value={member.user_id}>
+                                            {member.name} ({member.email})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
+                            <div className="modal-actions">
                                 <button
                                     type="button"
                                     className="ghost-btn"
                                     onClick={() => {
-                                        setEditingCardId(
-                                            null
-                                        );
-                                        setEditingCardTitle(
-                                            ""
-                                        );
-                                        setEditingCardDescription(
-                                            ""
-                                        );
+                                        setEditingCardId(null);
+                                        setEditingCardTitle("");
+                                        setEditingCardDescription("");
+                                        setEditingCardAssignee("");
                                     }}
                                 >
                                     Cancel
                                 </button>
-
                                 <button
                                     type="submit"
                                     className="primary-btn"
-                                    disabled={
-                                        updatingCard
-                                    }
+                                    disabled={updatingCard}
                                 >
-                                    {updatingCard
-                                        ? "Updating..."
-                                        : "Save Card"}
+                                    {updatingCard ? "Updating..." : "Save Changes"}
                                 </button>
-
                             </div>
-
                         </form>
-
                     </div>
-
                 </div>
             )}
-
         </>
     );
 }
