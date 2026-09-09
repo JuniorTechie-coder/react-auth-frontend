@@ -9,7 +9,7 @@ function Dashboard({ setIsLoggedIn }) {
         async function getWorkspaces() {
             const token = localStorage.getItem('token');
 
-            const response = await fetch('http://localhost:3000/api/workspaces', {
+            const response = await fetch('https://trello-backend-1dsq.onrender.com/api/workspaces', {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }

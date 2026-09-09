@@ -20,7 +20,7 @@ function Workspace({ handleLogout }) {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                "http://localhost:3000/api/workspaces",
+                "https://trello-backend-1dsq.onrender.com/api/workspaces",
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -57,7 +57,7 @@ function Workspace({ handleLogout }) {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                "http://localhost:3000/api/workspaces",
+                "https://trello-backend-1dsq.onrender.com/api/workspaces",
                 {
                     method: "POST",
                     headers: {

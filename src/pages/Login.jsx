@@ -18,7 +18,7 @@ function Login({ setIsLoggedIn, onSwitchToRegister }) {
 
         try {
             setLoading(true);
-            const response = await fetch("http://localhost:3000/api/auth/login", {
+            const response = await fetch("https://trello-backend-1dsq.onrender.com/api/auth/login", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

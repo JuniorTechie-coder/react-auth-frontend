@@ -23,7 +23,7 @@ function Board() {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                `http://localhost:3000/api/boards/workspace/${workspaceId}`,
+                `https://trello-backend-1dsq.onrender.com/api/boards/workspace/${workspaceId}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -68,7 +68,7 @@ function Board() {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                "http://localhost:3000/api/boards",
+                "https://trello-backend-1dsq.onrender.com/api/boards",
                 {
                     method: "POST",
                     headers: {

@@ -146,7 +146,7 @@ function BoardDetail() {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                `http://localhost:3000/api/boards/${boardId}`,
+                `https://trello-backend-1dsq.onrender.com/api/boards/${boardId}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -164,7 +164,7 @@ function BoardDetail() {
 
             if (data.workspace_id) {
                 const workspaceResponse = await fetch(
-                    `http://localhost:3000/api/workspaces/${data.workspace_id}`,
+                    `https://trello-backend-1dsq.onrender.com/api/workspaces/${data.workspace_id}`,
                     {
                         headers: {
                             Authorization: `Bearer ${token}`,
@@ -188,7 +188,7 @@ function BoardDetail() {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                `http://localhost:3000/api/lists/board/${boardId}`,
+                `https://trello-backend-1dsq.onrender.com/api/lists/board/${boardId}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -205,7 +205,7 @@ function BoardDetail() {
             const listsWithCards = await Promise.all(
                 data.map(async (list) => {
                     const cardResponse = await fetch(
-                        `http://localhost:3000/api/cards/lists/${list.id}`,
+                        `https://trello-backend-1dsq.onrender.com/api/cards/lists/${list.id}`,
                         {
                             headers: {
                                 Authorization: `Bearer ${token}`,
@@ -235,7 +235,7 @@ function BoardDetail() {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                `http://localhost:3000/api/cards/board/${boardId}/backlog`,
+                `https://trello-backend-1dsq.onrender.com/api/cards/board/${boardId}/backlog`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -259,7 +259,7 @@ function BoardDetail() {
         try {
             const token = localStorage.getItem("token");
 
-            const response = await fetch("http://localhost:3000/api/users", {
+            const response = await fetch("https://trello-backend-1dsq.onrender.com/api/users", {
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
@@ -291,7 +291,7 @@ function BoardDetail() {
             setCreatingList(true);
             const token = localStorage.getItem("token");
 
-            const response = await fetch("http://localhost:3000/api/lists", {
+            const response = await fetch("https://trello-backend-1dsq.onrender.com/api/lists", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -347,7 +347,7 @@ function BoardDetail() {
             if (!list) return;
 
             const response = await fetch(
-                `http://localhost:3000/api/lists/${editingListId}`,
+                `https://trello-backend-1dsq.onrender.com/api/lists/${editingListId}`,
                 {
                     method: "PUT",
                     headers: {
@@ -396,7 +396,7 @@ function BoardDetail() {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                `http://localhost:3000/api/lists/${listId}`,
+                `https://trello-backend-1dsq.onrender.com/api/lists/${listId}`,
                 {
                     method: "DELETE",
                     headers: {
@@ -437,7 +437,7 @@ function BoardDetail() {
             const selectedList = lists.find((list) => list.id === selectedListId);
             if (!selectedList) throw new Error("List not found");
 
-            const response = await fetch("http://localhost:3000/api/cards", {
+            const response = await fetch("https://trello-backend-1dsq.onrender.com/api/cards", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -500,7 +500,7 @@ function BoardDetail() {
             setCreatingBacklogCard(true);
             const token = localStorage.getItem("token");
 
-            const response = await fetch("http://localhost:3000/api/cards", {
+            const response = await fetch("https://trello-backend-1dsq.onrender.com/api/cards", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -546,7 +546,7 @@ function BoardDetail() {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                `http://localhost:3000/api/cards/${cardId}/assign`,
+                `https://trello-backend-1dsq.onrender.com/api/cards/${cardId}/assign`,
                 {
                     method: "PUT",
                     headers: {
@@ -628,7 +628,7 @@ function BoardDetail() {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                `http://localhost:3000/api/cards/${editingCardId}`,
+                `https://trello-backend-1dsq.onrender.com/api/cards/${editingCardId}`,
                 {
                     method: "PUT",
                     headers: {
@@ -710,7 +710,7 @@ function BoardDetail() {
             const token = localStorage.getItem("token");
 
             const response = await fetch(
-                `http://localhost:3000/api/cards/${cardId}`,
+                `https://trello-backend-1dsq.onrender.com/api/cards/${cardId}`,
                 {
                     method: "DELETE",
                     headers: {
@@ -803,7 +803,7 @@ function BoardDetail() {
 
             try {
                 const response = await fetch(
-                    `http://localhost:3000/api/cards/${card.id}`,
+                    `https://trello-backend-1dsq.onrender.com/api/cards/${card.id}`,
                     {
                         method: "PUT",
                         headers: {
@@ -865,7 +865,7 @@ function BoardDetail() {
 
             try {
                 const response = await fetch(
-                    `http://localhost:3000/api/cards/${card.id}`,
+                    `https://trello-backend-1dsq.onrender.com/api/cards/${card.id}`,
                     {
                         method: "PUT",
                         headers: {
@@ -930,7 +930,7 @@ function BoardDetail() {
 
         try {
             const response = await fetch(
-                `http://localhost:3000/api/cards/${card.id}`,
+                `https://trello-backend-1dsq.onrender.com/api/cards/${card.id}`,
                 {
                     method: "PUT",
                     headers: {
