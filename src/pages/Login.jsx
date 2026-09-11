@@ -68,13 +68,13 @@ function Login({ setIsLoggedIn, onSwitchToRegister }) {
                             <rect x="13.5" y="4" width="6.5" height="10" rx="1.5" fill="#ffffff" />
                         </svg>
                     </div>
-                    <span className="auth-brand-name">Trello</span>
+                    <span className="auth-brand-name">FlowDesk</span>
                 </div>
 
                 {/* Glassmorphic Auth Card */}
                 <div className="auth-card">
                     <div className="auth-header">
-                        <h2>Log in to Trello</h2>
+                        <h2>Log in to FlowDesk</h2>
                         <p>Welcome back! Enter your details to access your workspace.</p>
                     </div>
 

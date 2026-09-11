@@ -15,12 +15,12 @@ function BoardDetail() {
 
     // Theme
     const [theme, setTheme] = useState(
-        localStorage.getItem("trello_board_theme") || "theme-sunset"
+        localStorage.getItem("flowdesk_board_theme") || "theme-sunset"
     );
 
     // Role (lead vs member)
     const [role, setRole] = useState(
-        localStorage.getItem("trello_board_role") || "member"
+        localStorage.getItem("flowdesk_board_role") || "member"
     );
 
     // Filter cards by assignee ('all' | 'my' | 'unassigned' | number)
@@ -90,7 +90,7 @@ function BoardDetail() {
 
     useEffect(() => {
         document.body.className = theme;
-        localStorage.setItem("trello_board_theme", theme);
+        localStorage.setItem("flowdesk_board_theme", theme);
 
         return () => {
             document.body.className = "";
@@ -107,7 +107,7 @@ function BoardDetail() {
 
     function changeRole(newRole) {
         setRole(newRole);
-        localStorage.setItem("trello_board_role", newRole);
+        localStorage.setItem("flowdesk_board_role", newRole);
     }
 
     // --------------------------------------------------
@@ -1047,7 +1047,7 @@ function BoardDetail() {
             {/* NAVBAR */}
             <header className="navbar">
                 <a className="logo" href="/">
-                    Trello Clone
+                    FlowDesk
                 </a>
 
                 <div className="nav-right">

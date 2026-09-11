@@ -13,7 +13,7 @@ function Landing({ onOpenWorkspace, onOpenLogin, onOpenRegister, isLoggedIn }) {
                         window.history.pushState({}, "", "/");
                     }}
                 >
-                    Trello Clone
+                    FlowDesk
                 </a>
                 <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                     {isLoggedIn ? (
@@ -135,7 +135,7 @@ function Landing({ onOpenWorkspace, onOpenLogin, onOpenRegister, isLoggedIn }) {
 
             {/* FOOTER */}
             <footer className="landing-footer">
-                <span>Trello Clone — Complete Workspace &amp; Team Lead Task Management</span>
+                <span>FlowDesk — Complete Workspace &amp; Team Lead Task Management</span>
             </footer>
         </div>
     );
